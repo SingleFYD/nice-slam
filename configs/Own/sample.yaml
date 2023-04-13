@@ -12,5 +12,5 @@ mapping:
   bound:  [[-2.2,3],[-1,4],[-4,1.5]]
   marching_cubes_bound: [[-2.2,3],[-1,4],[-4,1.5]]
 data:
-  input_folder: Datasets/Own/scene7
-  output: output/Own/scene7
+  input_folder: Datasets/Own/scene5
+  output: output/Own/scene5

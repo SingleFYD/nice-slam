@@ -25,23 +25,30 @@ def readEXR_onlydepth(filename):
     import Imath
     import OpenEXR as exr
 
+    # 打开EXR文件
     exrfile = exr.InputFile(filename)
+    # 获取图像大小
     header = exrfile.header()
     dw = header['dataWindow']
     isize = (dw.max.y - dw.min.y + 1, dw.max.x - dw.min.x + 1)
 
-    channelData = dict()
+    # 获取像素数据 sc
+    ch = 'FinalImageMovieRenderQueue_WorldDepth.R'
+    depth_data = exrfile.channel(ch, Imath.PixelType(Imath.PixelType.FLOAT))
+    depth_data = np.fromstring(depth_data, dtype=np.float32)
+    depth_data = np.reshape(depth_data, isize)    # 将数据重新排列为图像格式
+    return depth_data
 
-    for c in header['channels']:
-        C = exrfile.channel(c, Imath.PixelType(Imath.PixelType.FLOAT))
-        C = np.fromstring(C, dtype=np.float32)
-        C = np.reshape(C, isize)
-
-        channelData[c] = C
-
-    Y = None if 'Y' not in header['channels'] else channelData['Y']
-
-    return Y
+    # 获取像素数据 CoFusion
+    # channelData = dict()
+    # for c in header['channels']:
+    #     C = exrfile.channel(c, Imath.PixelType(Imath.PixelType.FLOAT))
+    #     C = np.fromstring(C, dtype=np.float32)
+    #     C = np.reshape(C, isize)
+    #     channelData[c] = C
+    #
+    # Y = None if 'Y' not in header['channels'] else channelData['Y']
+    # return Y
 
 
 def get_dataset(cfg, args, scale, device='cuda:0'):
@@ -144,7 +151,7 @@ class Azure(BaseDataset):
         self.color_paths = sorted(
             glob.glob(os.path.join(self.input_folder, 'color', '*.jpg')))
         self.depth_paths = sorted(
-            glob.glob(os.path.join(self.input_folder, 'depth', '*.png')))
+            glob.glob(os.path.join(self.input_folder, 'depth', '*.exr')))
         self.n_img = len(self.color_paths)
         self.load_poses(os.path.join(
             self.input_folder, 'scene', 'trajectory.log'))

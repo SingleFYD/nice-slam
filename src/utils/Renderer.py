@@ -47,7 +47,7 @@ class Renderer(object):
 
             pi = pi.unsqueeze(0)    # 插入一个零维度
             if self.nice:
-                ret = decoders(pi, c_grid=c, stage=stage)   # decoder返回包含每个点的占据和颜色值的张量 
+                ret = decoders(pi, c_grid=c, stage=stage)   # decoder返回包含每个点的占据和颜色值的张量
             else:
                 ret = decoders(pi, c_grid=None)
             ret = ret.squeeze(0)

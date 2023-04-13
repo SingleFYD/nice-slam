@@ -48,7 +48,7 @@ class Tracker(object):
         self.tracking_pixels = cfg['tracking']['pixels']
         self.seperate_LR = cfg['tracking']['seperate_LR']
         self.w_color_loss = cfg['tracking']['w_color_loss']
-        self.ignore_edge_W = cfg['tracking']['ignore_edge_W']
+        self.ignore_edge_W = cfg['tracking']['ignore_edge_W']   # ignore edge pixels
         self.ignore_edge_H = cfg['tracking']['ignore_edge_H']
         self.handle_dynamic = cfg['tracking']['handle_dynamic']
         self.use_color_in_tracking = cfg['tracking']['use_color_in_tracking']
@@ -58,11 +58,9 @@ class Tracker(object):
         self.no_vis_on_first_frame = cfg['mapping']['no_vis_on_first_frame']
 
         self.prev_mapping_idx = -1
-        self.frame_reader = get_dataset(
-            cfg, args, self.scale, device=self.device)
+        self.frame_reader = get_dataset(cfg, args, self.scale, device=self.device)
         self.n_img = len(self.frame_reader)
-        self.frame_loader = DataLoader(
-            self.frame_reader, batch_size=1, shuffle=False, num_workers=1)
+        self.frame_loader = DataLoader(self.frame_reader, batch_size=1, shuffle=False, num_workers=1)
         self.visualizer = Visualizer(freq=cfg['tracking']['vis_freq'], inside_freq=cfg['tracking']['vis_inside_freq'],
                                      vis_dir=os.path.join(self.output, 'vis' if 'Demo' in self.output else 'tracking_vis'),
                                      renderer=self.renderer, verbose=self.verbose, device=self.device)
@@ -84,8 +82,8 @@ class Tracker(object):
         """
         device = self.device
         H, W, fx, fy, cx, cy = self.H, self.W, self.fx, self.fy, self.cx, self.cy
-        optimizer.zero_grad()
-        c2w = get_camera_from_tensor(camera_tensor)
+        optimizer.zero_grad()   # clear the gradients of all optimized variables
+        c2w = get_camera_from_tensor(camera_tensor) # get camera pose from tensor
         Wedge = self.ignore_edge_W
         Hedge = self.ignore_edge_H
         batch_rays_o, batch_rays_d, batch_gt_depth, batch_gt_color = get_samples(
@@ -114,12 +112,10 @@ class Tracker(object):
         else:
             mask = batch_gt_depth > 0
 
-        loss = (torch.abs(batch_gt_depth-depth) /
-                torch.sqrt(uncertainty+1e-10))[mask].sum()
+        loss = (torch.abs(batch_gt_depth-depth) / torch.sqrt(uncertainty+1e-10))[mask].sum()
 
         if self.use_color_in_tracking:
-            color_loss = torch.abs(
-                batch_gt_color - color)[mask].sum()
+            color_loss = torch.abs(batch_gt_color - color)[mask].sum()
             loss += self.w_color_loss*color_loss
 
         loss.backward()
