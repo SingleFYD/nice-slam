@@ -118,17 +118,17 @@ class Tracker(object):
             color_loss = torch.abs(batch_gt_color - color)[mask].sum()
             loss += self.w_color_loss*color_loss
 
-        loss.backward()
-        optimizer.step()
-        optimizer.zero_grad()
+        loss.backward() # loss 反向传播
+        optimizer.step()    # update the parameters of camera
+        optimizer.zero_grad()   # clear the gradients of all optimized variables
         return loss.item()
 
     def update_para_from_mapping(self):
         """
         Update the parameters of scene representation from the mapping thread.
-
+        
         """
-        if self.mapping_idx[0] != self.prev_mapping_idx:
+        if self.mapping_idx[0] != self.prev_mapping_idx:    # 每5帧更新一次
             if self.verbose:
                 print('Tracking: update the parameters from mapping')
             self.decoders = copy.deepcopy(self.shared_decoders).to(self.device)
@@ -157,7 +157,7 @@ class Tracker(object):
             if self.sync_method == 'strict':
                 # strictly mapping and then tracking
                 # initiate mapping every self.every_frame frames
-                if idx > 0 and (idx % self.every_frame == 1 or self.every_frame == 1):
+                if idx > 0 and (idx % self.every_frame == 1 or self.every_frame == 1): 
                     while self.mapping_idx[0] != idx-1:
                         time.sleep(0.1)
                     pre_c2w = self.estimate_c2w_list[idx-1].to(device)
@@ -179,60 +179,53 @@ class Tracker(object):
 
             if idx == 0 or self.gt_camera:
                 c2w = gt_c2w
-                if not self.no_vis_on_first_frame:
-                    self.visualizer.vis(
-                        idx, 0, gt_depth, gt_color, c2w, self.c, self.decoders)
+                if not self.no_vis_on_first_frame:  # 不可视化第一帧
+                    self.visualizer.vis(idx, 0, gt_depth, gt_color, c2w, self.c, self.decoders)
 
             else:
                 gt_camera_tensor = get_tensor_from_camera(gt_c2w)
-                if self.const_speed_assumption and idx-2 >= 0:
+                if self.const_speed_assumption and idx-2 >= 0:  # 常速假设
                     pre_c2w = pre_c2w.float()
-                    delta = pre_c2w@self.estimate_c2w_list[idx-2].to(
-                        device).float().inverse()
-                    estimated_new_cam_c2w = delta@pre_c2w
+                    delta = pre_c2w@self.estimate_c2w_list[idx-2].to(device).float().inverse()  
+                    estimated_new_cam_c2w = delta@pre_c2w   # 估计的相机位姿
                 else:
                     estimated_new_cam_c2w = pre_c2w
 
-                camera_tensor = get_tensor_from_camera(
-                    estimated_new_cam_c2w.detach())
-                if self.seperate_LR:
+                camera_tensor = get_tensor_from_camera(estimated_new_cam_c2w.detach())
+                if self.seperate_LR:    # false
                     camera_tensor = camera_tensor.to(device).detach()
-                    T = camera_tensor[-3:]
-                    quad = camera_tensor[:4]
-                    cam_para_list_quad = [quad]
+                    T = camera_tensor[-3:]  # T为平移向量
+                    quad = camera_tensor[:4]    # quad为四元数
+                    cam_para_list_quad = [quad] 
                     quad = Variable(quad, requires_grad=True)
                     T = Variable(T, requires_grad=True)
                     camera_tensor = torch.cat([quad, T], 0)
-                    cam_para_list_T = [T]
+                    cam_para_list_T = [T]   # 将四元数存储在列表中，与T分开优化
                     cam_para_list_quad = [quad]
+                    # 开始优化相机参数,分别赋予不同的学习率
                     optimizer_camera = torch.optim.Adam([{'params': cam_para_list_T, 'lr': self.cam_lr},
                                                          {'params': cam_para_list_quad, 'lr': self.cam_lr*0.2}])
                 else:
-                    camera_tensor = Variable(
-                        camera_tensor.to(device), requires_grad=True)
+                    camera_tensor = Variable(camera_tensor.to(device), requires_grad=True)  #转化为 Variable 类型，将相机位姿求梯度
                     cam_para_list = [camera_tensor]
-                    optimizer_camera = torch.optim.Adam(
-                        cam_para_list, lr=self.cam_lr)
+                    # 开始优化相机参数，学习率均为0.001
+                    optimizer_camera = torch.optim.Adam(cam_para_list, lr=self.cam_lr) 
 
-                initial_loss_camera_tensor = torch.abs(
-                    gt_camera_tensor.to(device)-camera_tensor).mean().item()
+                initial_loss_camera_tensor = torch.abs(gt_camera_tensor.to(device)-camera_tensor).mean().item() # 返回初始相机位姿的loss
                 candidate_cam_tensor = None
                 current_min_loss = 10000000000.
                 for cam_iter in range(self.num_cam_iters):
                     if self.seperate_LR:
-                        camera_tensor = torch.cat([quad, T], 0).to(self.device)
+                        camera_tensor = torch.cat([quad, T], 0).to(self.device) # 将四元数与T拼接
 
-                    self.visualizer.vis(
-                        idx, cam_iter, gt_depth, gt_color, camera_tensor, self.c, self.decoders)
+                    self.visualizer.vis(idx, cam_iter, gt_depth, gt_color, camera_tensor, self.c, self.decoders)
 
-                    loss = self.optimize_cam_in_batch(
-                        camera_tensor, gt_color, gt_depth, self.tracking_pixels, optimizer_camera)
+                    loss = self.optimize_cam_in_batch(camera_tensor, gt_color, gt_depth, self.tracking_pixels, optimizer_camera)    # 返回rendering loss ***
 
                     if cam_iter == 0:
                         initial_loss = loss
 
-                    loss_camera_tensor = torch.abs(
-                        gt_camera_tensor.to(device)-camera_tensor).mean().item()
+                    loss_camera_tensor = torch.abs(gt_camera_tensor.to(device)-camera_tensor).mean().item() # 返回相机位姿的loss
                     if self.verbose:
                         if cam_iter == self.num_cam_iters-1:
                             print(
@@ -240,15 +233,14 @@ class Tracker(object):
                                 f'camera tensor error: {initial_loss_camera_tensor:.4f}->{loss_camera_tensor:.4f}')
                     if loss < current_min_loss:
                         current_min_loss = loss
-                        candidate_cam_tensor = camera_tensor.clone().detach()
+                        candidate_cam_tensor = camera_tensor.clone().detach()   # 将当前的相机位姿作为候选位姿
                 bottom = torch.from_numpy(np.array([0, 0, 0, 1.]).reshape(
-                    [1, 4])).type(torch.float32).to(self.device)
-                c2w = get_camera_from_tensor(
-                    candidate_cam_tensor.clone().detach())
+                    [1, 4])).type(torch.float32).to(self.device)    # 生成一个4*1的矩阵，最后一行为1
+                c2w = get_camera_from_tensor(candidate_cam_tensor.clone().detach())
                 c2w = torch.cat([c2w, bottom], dim=0)
             self.estimate_c2w_list[idx] = c2w.clone().cpu()
             self.gt_c2w_list[idx] = gt_c2w.clone().cpu()
             pre_c2w = c2w.clone()
             self.idx[0] = idx
             if self.low_gpu_mem:
-                torch.cuda.empty_cache()
+                torch.cuda.empty_cache()    # 释放显存

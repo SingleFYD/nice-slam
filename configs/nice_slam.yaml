@@ -1,7 +1,7 @@
 coarse: True
 sync_method: strict
 scale: 1
-verbose: True
+verbose: True # print loss 信息
 occupancy: True
 low_gpu_mem: True
 grid_len:
