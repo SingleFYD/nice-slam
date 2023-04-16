@@ -79,12 +79,11 @@ def get_rays_from_uv(i, j, c2w, H, W, fx, fy, cx, cy, device):
     if isinstance(c2w, np.ndarray):
         c2w = torch.from_numpy(c2w).to(device)
 
-    dirs = torch.stack(
-        [(i-cx)/fx, -(j-cy)/fy, -torch.ones_like(i)], -1).to(device)
-    dirs = dirs.reshape(-1, 1, 3)
+    dirs = torch.stack([(i-cx)/fx, -(j-cy)/fy, -torch.ones_like(i)], -1).to(device) # 把uv转换到相机坐标系下
+    dirs = dirs.reshape(-1, 1, 3)   # (n,1,3)
     # Rotate ray directions from camera frame to the world frame
     # dot product, equals to: [c2w.dot(dir) for dir in dirs]
-    rays_d = torch.sum(dirs * c2w[:3, :3], -1)
+    rays_d = torch.sum(dirs * c2w[:3, :3], -1)  # (Ax)^T = x^T A^T 用于有若干个向量的情况，转到世界坐标系下
     rays_o = c2w[:3, -1].expand(rays_d.shape)
     return rays_o, rays_d
 
@@ -130,7 +129,7 @@ def get_samples(H0, H1, W0, W1, n, H, W, fx, fy, cx, cy, c2w, depth, color, devi
     """
     i, j, sample_depth, sample_color = get_sample_uv(
         H0, H1, W0, W1, n, depth, color, device=device)
-    rays_o, rays_d = get_rays_from_uv(i, j, c2w, H, W, fx, fy, cx, cy, device)
+    rays_o, rays_d = get_rays_from_uv(i, j, c2w, H, W, fx, fy, cx, cy, device)  # 均是在世界坐标系下
     return rays_o, rays_d, sample_depth, sample_color
 
 

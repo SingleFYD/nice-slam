@@ -66,7 +66,7 @@ class Renderer(object):
 
         Args:
             c (dict): feature grids.
-            decoders (nn.module): decoders.
+            decoders (nn.module): decoders. 
             rays_d (tensor, N*3): rays direction.
             rays_o (tensor, N*3): rays origin.
             device (str): device name to compute on.
@@ -79,8 +79,8 @@ class Renderer(object):
             color (tensor): rendered color.
         """
 
-        N_samples = self.N_samples  # 每条射线需要采样的点数
-        N_surface = self.N_surface  # 每条射线最近的表面采样点数
+        N_samples = self.N_samples  # 每条射线需要采样的点数 32
+        N_surface = self.N_surface  # 每条射线最近的表面采样点数 16
         N_importance = self.N_importance    # 0
 
         N_rays = rays_o.shape[0]    # 射线数量
@@ -92,14 +92,14 @@ class Renderer(object):
             near = 0.01     # 近处深度
         else:
             gt_depth = gt_depth.reshape(-1, 1)  # 将深度数据调成一列
-            gt_depth_samples = gt_depth.repeat(1, N_samples)    # 使得每个深度值都有N_sample个
+            gt_depth_samples = gt_depth.repeat(1, N_samples)    # 使得每个深度值都有N_sample个？
             near = gt_depth_samples*0.01    # 近处的深度值为 0.01*深度图
 
         with torch.no_grad():   # 不计算梯度
             det_rays_o = rays_o.clone().detach().unsqueeze(-1)  # 光线原点(N, 3, 1) 克隆出来的地址不同数值相同
             det_rays_d = rays_d.clone().detach().unsqueeze(-1)  # 光线方向(N, 3, 1) detach出来可以修改数值
-            t = (self.bound.unsqueeze(0).to(device) - det_rays_o)/det_rays_d  # (N, 3, 2)，计算射线方向与边界相交的位置
-            far_bb, _ = torch.min(torch.max(t, dim=2)[0], dim=1)    #  按行取最大，按列取最小   
+            t = (self.bound.unsqueeze(0).to(device) - det_rays_o)/det_rays_d  # (N, 3, 2)，计算射线方向与边界相交的位置，o + t*d = bound，bound是在相机坐标系下的
+            far_bb, _ = torch.min(torch.max(t, dim=2)[0], dim=1)    # (N, 1)，计算与最远边界的垂直距离
             far_bb = far_bb.unsqueeze(-1)
             far_bb += 0.01
            # print('far_bb', far_bb.size())
@@ -129,25 +129,19 @@ class Renderer(object):
                 gt_none_zero = gt_depth[gt_none_zero_mask]
                 gt_none_zero = gt_none_zero.unsqueeze(-1)
                 gt_depth_surface = gt_none_zero.repeat(1, N_surface)
-                t_vals_surface = torch.linspace(
-                    0., 1., steps=N_surface).double().to(device)
+                t_vals_surface = torch.linspace(0., 1., steps=N_surface).double().to(device)
                 # emperical range 0.05*depth
                 z_vals_surface_depth_none_zero = 0.95*gt_depth_surface * \
                     (1.-t_vals_surface) + 1.05 * \
                     gt_depth_surface * (t_vals_surface)
-                z_vals_surface = torch.zeros(
-                    gt_depth.shape[0], N_surface).to(device).double()
+                z_vals_surface = torch.zeros(gt_depth.shape[0], N_surface).to(device).double()
                 gt_none_zero_mask = gt_none_zero_mask.squeeze(-1)
-                z_vals_surface[gt_none_zero_mask,
-                               :] = z_vals_surface_depth_none_zero
+                z_vals_surface[gt_none_zero_mask,:] = z_vals_surface_depth_none_zero
                 near_surface = 0.001
                 far_surface = torch.max(gt_depth)
-                z_vals_surface_depth_zero = near_surface * \
-                    (1.-t_vals_surface) + far_surface * (t_vals_surface)
-                z_vals_surface_depth_zero.unsqueeze(
-                    0).repeat((~gt_none_zero_mask).sum(), 1)
-                z_vals_surface[~gt_none_zero_mask,
-                               :] = z_vals_surface_depth_zero
+                z_vals_surface_depth_zero = near_surface * (1.-t_vals_surface) + far_surface * (t_vals_surface)
+                z_vals_surface_depth_zero.unsqueeze(0).repeat((~gt_none_zero_mask).sum(), 1)
+                z_vals_surface[~gt_none_zero_mask,:] = z_vals_surface_depth_zero
 
         t_vals = torch.linspace(0., 1., steps=N_samples, device=device) # 在近截面和远截面之间生成N_samples个深度值
 
