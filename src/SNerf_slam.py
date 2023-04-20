@@ -1,12 +1,15 @@
 import os
 import time
 
+import numpy as np
 import torch
 import torch.multiprocessing as mp
 
+
+
 from src.STracker import STracker
 from src.SMapper import SMapper
-from src.utils.Sdecoder import SDecoder
+from src.utils.Sdecoder import SNeEncoder
 
 class SNerf_slam():
     def __init__(self, cfg, args):
@@ -19,8 +22,12 @@ class SNerf_slam():
         os.makedirs(self.ckptsdir, exist_ok=True)
         os.makedirs(f'{self.output}/mesh', exist_ok=True)
         self.H, self.W, self.fx, self.fy, self.cx, self.cy = cfg['cam']['H'], cfg['cam']['W'], cfg['cam']['fx'], cfg['cam']['fy'], cfg['cam']['cx'], cfg['cam']['cy']
+
+        self.dim = cfg['data']['dim']
+        self.c_dim = cfg['model']['c_dim']
+        self.load_bound(cfg)        
         
-        self.shared_decoder = SDecoder(cfg, args, self) # todo: 待修改
+        self.shared_decoder = SNeEncoder(self) # todo: 待修改
         
 
         self.mapping_first_frame = torch.zeros((1)).int()
@@ -28,8 +35,20 @@ class SNerf_slam():
 
         self.tracker = STracker(cfg, args, self)
         self.mapper = SMapper(cfg, args, self)
+        
 
+    def load_bound(self, cfg):
+        """
+        Pass the scene bound parameters to different decoders and self.
 
+        Args:
+            cfg (dict): parsed config dict.
+        """
+        # scale the bound if there is a global scaling factor
+        self.bound = torch.from_numpy(np.array(cfg['mapping']['bound'])*self.scale)
+        bound_divisible = cfg['grid_len']['bound_divisible']
+        # enlarge the bound a bit to allow it divisible by bound_divisible
+        self.bound[:, 1] = (((self.bound[:, 1]-self.bound[:, 0]) / bound_divisible).int()+1)*bound_divisible+self.bound[:, 0]
 
 
 

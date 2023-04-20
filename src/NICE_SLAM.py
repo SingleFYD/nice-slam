@@ -54,7 +54,7 @@ class NICE_SLAM():
 
         self.load_bound(cfg)
         if self.nice:
-            self.load_pretrain(cfg)
+            # self.load_pretrain(cfg)
             self.grid_init(cfg)
         else:
             self.shared_c = {}
