@@ -113,4 +113,4 @@ data:
 model:
   c_dim: 32
   coarse_bound_enlarge: 2
-  pos_embedding_method: nerf
+  pos_embedding_method: fourier

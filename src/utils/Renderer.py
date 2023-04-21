@@ -139,6 +139,8 @@ class Renderer(object):
                 z_vals_surface[gt_none_zero_mask,:] = z_vals_surface_depth_none_zero
                 near_surface = 0.001
                 far_surface = torch.max(gt_depth)
+                # if torch.max(gt_depth) - torch.min(gt_depth) > 100:
+                #     far_surface = torch.max(self.bound[:, 1] - self.bound[:, 0])
                 z_vals_surface_depth_zero = near_surface * (1.-t_vals_surface) + far_surface * (t_vals_surface)
                 z_vals_surface_depth_zero.unsqueeze(0).repeat((~gt_none_zero_mask).sum(), 1)
                 z_vals_surface[~gt_none_zero_mask,:] = z_vals_surface_depth_zero

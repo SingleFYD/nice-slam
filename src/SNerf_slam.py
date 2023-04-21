@@ -7,9 +7,12 @@ import torch.multiprocessing as mp
 
 
 
+from src.SMesher import SMesher
 from src.STracker import STracker
 from src.SMapper import SMapper
+from src.utils.SRender import SRender
 from src.utils.Sdecoder import SNeEncoder
+from src.utils.Sdataset import BaseDataset as SGet_dataset
 
 class SNerf_slam():
     def __init__(self, cfg, args):
@@ -25,18 +28,47 @@ class SNerf_slam():
 
         self.dim = cfg['data']['dim']
         self.c_dim = cfg['model']['c_dim']
-        self.load_bound(cfg)        
+        self.load_bound(cfg)
+        # self.load_pretrain(cfg)
+        self.gird_init(cfg)
         
-        self.shared_decoder = SNeEncoder(self) # todo: 待修改
-        
+        self.shared_decoder = SNeEncoder(self)
 
+        self.scale = cfg['scale']
+
+        mp.set_start_method('spawn', force=True)
+
+        self.frame_reader = SGet_dataset(cfg, args, self.scale)
+        self.n_img = len(self.frame_reader)
+        
+        self.estimate_c2w_list = torch.zeros((self.n_img, 4, 4))
+        self.estimate_c2w_list.share_memory_()
+        self.gt_c2w_list = torch.zeros((self.n_img, 4, 4))
+        self.gt_c2w_list.share_memory_()
+        self.idx = torch.zeros((1)).int()
+        self.idx.share_memory_()
         self.mapping_first_frame = torch.zeros((1)).int()
         self.mapping_first_frame.share_memory_()
+        self.mapping_idx = torch.zeros((1)).int()
+        self.mapping_idx.share_memory_()
+        self.mapping_cnt = torch.zeros((1)).int()
+        self.mapping_cnt.share_memory_()
 
-        self.tracker = STracker(cfg, args, self)
-        self.mapper = SMapper(cfg, args, self)
+        for key, val in self.shared_c.items():
+            val = val.to(self.cfg['mapping']['device'])
+            val.share_memory_()
+            self.shared_c[key] = val
         
+        self.shared_decoder = self.shared_decoder.to(self.cfg['mapping']['device'])
+        self.shared_decoder.share_memory()
 
+        self.render = SRender(cfg, args, self)
+        self.mesher = SMesher(cfg, args, self)
+        self.mapper = SMapper(cfg, args, self)
+        self.tracker = STracker(cfg, args, self)
+        self.print_output_desc()
+
+        
     def load_bound(self, cfg):
         """
         Pass the scene bound parameters to different decoders and self.
@@ -51,6 +83,31 @@ class SNerf_slam():
         self.bound[:, 1] = (((self.bound[:, 1]-self.bound[:, 0]) / bound_divisible).int()+1)*bound_divisible+self.bound[:, 0]
 
 
+    def gird_init(self, cfg):
+        """
+        Initialize the grid for the mapping process.
+
+        Args:
+            cfg (dict): parsed config dict.
+
+        """
+        self.grid_len = cfg['grid_len']
+        xyz_len = self.bound[:, 1] - self.bound[:, 0]
+        c_dim = cfg['model']['c_dim']
+        val_shape = list(map(int, (xyz_len/self.grid_len).tolist()))
+        val_shape[0], val_shape[2] = val_shape[2], val_shape[0]
+        self.val_shape = val_shape
+        val_shape = [1, c_dim, *val_shape]
+        val = torch.zeros(val_shape).normal_(mean=0, std=0.01)
+        self.shared_c = val
+
+
+    def print_output_desc(self):
+        print(f"INFO: The output folder is {self.output}")
+        print(f"INFO: The GT, generated and residual depth/color images can be found under {self.output}/tracking_vis/ and {self.output}/mapping_vis/")
+        print(f"INFO: The mesh can be found under {self.output}/mesh/")
+        print(f"INFO: The checkpoint can be found under {self.output}/ckpt/")
+
 
     def tracking(self):
         while (True):
@@ -60,8 +117,10 @@ class SNerf_slam():
 
         self.tracker.run()
 
+
     def mapping(self):
         self.mapper.run()
+
 
     def run(self):
         """
@@ -77,7 +136,6 @@ class SNerf_slam():
             processes.append(p)
         for p in processes:
             p.join()
-
 
 
 

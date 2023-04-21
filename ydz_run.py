@@ -1,6 +1,6 @@
 import argparse
 
-from src import config
+from src import SConfig as config
 from src.SNerf_slam import SNerf_slam
 
 def main():
