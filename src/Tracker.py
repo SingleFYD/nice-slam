@@ -147,7 +147,7 @@ class Tracker(object):
 
         for idx, gt_color, gt_depth, gt_c2w in pbar:
             if not self.verbose:
-                pbar.set_description(f"Tracking Frame {idx[0]}")
+                pbar.set_description(f"ydz Tracking Frame {idx[0]}")
 
             idx = idx[0]
             gt_depth = gt_depth[0]
@@ -173,8 +173,7 @@ class Tracker(object):
             self.update_para_from_mapping()
 
             if self.verbose:
-                print(Fore.MAGENTA)
-                print("Tracking Frame ",  idx.item())
+                print(Fore.RED , "Tracking Frame ",  idx.item())
                 print(Style.RESET_ALL)
 
             if idx == 0 or self.gt_camera:
