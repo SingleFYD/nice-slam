@@ -48,4 +48,6 @@ class SMapper(object):
 
     def run(self):
         cfg = self.cfg
-        
+        idx, gt_color, gt_depth, gt_c2w = self.frame_reader[0]
+        self.estimate
+
