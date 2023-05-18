@@ -8,11 +8,13 @@ import torch.multiprocessing as mp
 
 from src import config
 from src.Mapper import Mapper
-from src.Tracker import Tracker
+# from src.Tracker import Tracker
+from src.STracker import STracker as Tracker
 from src.utils.datasets import get_dataset
 from src.utils.Logger import Logger
 from src.utils.Mesher import Mesher
-from src.utils.Renderer import Renderer
+from src.utils.SRender import SRender as Renderer
+# from src.utils.Renderer import Renderer
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 

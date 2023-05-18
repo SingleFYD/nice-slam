@@ -5,14 +5,15 @@ import numpy as np
 import torch
 import torch.multiprocessing as mp
 
-
-
-from src.SMesher import SMesher
+from src.SLogger import SLogger
+# from src.SMesher import SMesher
 from src.STracker import STracker
 from src.SMapper import SMapper
 from src.utils.SRender import SRender
 from src.utils.Sdecoder import SNeEncoder
 from src.utils.Sdataset import BaseDataset as SGet_dataset
+
+mp.set_sharing_strategy('file_system')
 
 class SNerf_slam():
     def __init__(self, cfg, args):
@@ -28,15 +29,18 @@ class SNerf_slam():
 
         self.dim = cfg['data']['dim']
         self.c_dim = cfg['model']['c_dim']
+        self.scale = cfg['scale']
         self.load_bound(cfg)
         # self.load_pretrain(cfg)
         self.gird_init(cfg)
         
         self.shared_decoder = SNeEncoder(self)
 
-        self.scale = cfg['scale']
-
-        mp.set_start_method('spawn', force=True)
+        # need to use spawn
+        try:
+            mp.set_start_method('spawn', force=True)
+        except RuntimeError:
+            pass
 
         self.frame_reader = SGet_dataset(cfg, args, self.scale)
         self.n_img = len(self.frame_reader)
@@ -47,6 +51,7 @@ class SNerf_slam():
         self.gt_c2w_list.share_memory_()
         self.idx = torch.zeros((1)).int()
         self.idx.share_memory_()
+        # mapping of first frame is done, can begin tracking
         self.mapping_first_frame = torch.zeros((1)).int()
         self.mapping_first_frame.share_memory_()
         self.mapping_idx = torch.zeros((1)).int()
@@ -54,16 +59,14 @@ class SNerf_slam():
         self.mapping_cnt = torch.zeros((1)).int()
         self.mapping_cnt.share_memory_()
 
-        for key, val in self.shared_c.items():
-            val = val.to(self.cfg['mapping']['device'])
-            val.share_memory_()
-            self.shared_c[key] = val
+        self.shared_c = self.shared_c.to(self.cfg['mapping']['device']).share_memory_()
         
         self.shared_decoder = self.shared_decoder.to(self.cfg['mapping']['device'])
         self.shared_decoder.share_memory()
 
         self.render = SRender(cfg, args, self)
-        self.mesher = SMesher(cfg, args, self)
+        #self.mesher = SMesher(cfg, args, self)
+        self.logger = SLogger(cfg, args, self)
         self.mapper = SMapper(cfg, args, self)
         self.tracker = STracker(cfg, args, self)
         self.print_output_desc()
@@ -78,7 +81,7 @@ class SNerf_slam():
         """
         # scale the bound if there is a global scaling factor
         self.bound = torch.from_numpy(np.array(cfg['mapping']['bound'])*self.scale)
-        bound_divisible = cfg['grid_len']['bound_divisible']
+        bound_divisible = cfg['bound_divisible']
         # enlarge the bound a bit to allow it divisible by bound_divisible
         self.bound[:, 1] = (((self.bound[:, 1]-self.bound[:, 0]) / bound_divisible).int()+1)*bound_divisible+self.bound[:, 0]
 
@@ -109,17 +112,18 @@ class SNerf_slam():
         print(f"INFO: The checkpoint can be found under {self.output}/ckpt/")
 
 
-    def tracking(self):
-        while (True):
-            if self.mapping_first_frame[0] == 1:
-                break
-            time.sleep(1)
+    def tracking(self, rank):
+        print("a")
+        # while (True):
+        #     if self.mapping_first_frame[0] == 1:
+        #         break
+        #     time.sleep(1)
+        # self.tracker.run()
 
-        self.tracker.run()
 
-
-    def mapping(self):
-        self.mapper.run()
+    def mapping(self, rank):
+        print("b")
+        # self.mapper.run()
 
 
     def run(self):
@@ -129,15 +133,13 @@ class SNerf_slam():
         processes = []
         for rank in range(2):
             if rank == 0:
-                p = mp.Process(target=self.tracking)
-            else:
-                p = mp.Process(target=self.mapping)
+                p = mp.Process(target=self.tracking, args=(rank,))
+            elif rank == 1:
+                p = mp.Process(target=self.mapping, args=(rank,))
             p.start()
             processes.append(p)
         for p in processes:
             p.join()
-
-
 
 if __name__ == '__main__':
     pass

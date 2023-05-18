@@ -121,10 +121,10 @@ class SNeEncoder(nn.Module):
         super().__init__()
         self.dim = slam.dim
         self.c_dim = slam.c_dim
-        self.bounds = slam.bounds
+        self.bound = slam.bound
         self.hidden_size = 32
 
-        self.decoder = MLP(dim=self.dim, c_dim=self.c_dim, hidden_size=self.hidden_size, bound=self.bounds)
+        self.decoder = MLP(dim=self.dim, c_dim=self.c_dim, hidden_size=self.hidden_size, bound=self.bound)
         
     def forward(self, p, c_grid):
         device = f'cuda:{p.get_device()}'

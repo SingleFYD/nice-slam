@@ -11,7 +11,7 @@ def main():
     parser.add_argument('--output_folder', type=str, help='input folder, higher priority')
     args = parser.parse_args()
 
-    cfg = config.load_config(args.config, 'configs/SNerf_slam')
+    cfg = config.load_config(args.config, 'configs/SNerf_slam.yaml')
 
     slam = SNerf_slam(cfg, args)
 

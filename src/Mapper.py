@@ -238,9 +238,9 @@ class Mapper(object):
             idx (int): the index of current frame
             cur_gt_color (tensor): gt_color image of the current camera.
             cur_gt_depth (tensor): gt_depth image of the current camera.
-            gt_cur_c2w (tensor): groundtruth camera to world matrix corresponding to current frame.
+            gt_cur_c2w (tensor): ground truth camera to world matrix corresponding to current frame.
             keyframe_dict (list): list of keyframes info dictionary.
-            keyframe_list (list): list ofkeyframe index.
+            keyframe_list (list): list of keyframe index.
             cur_c2w (tensor): the estimated camera to world matrix of current frame. 
 
         Returns:
@@ -479,10 +479,12 @@ class Mapper(object):
                 batch_rays_o = batch_rays_o[inside_mask]
                 batch_gt_depth = batch_gt_depth[inside_mask]
                 batch_gt_color = batch_gt_color[inside_mask]
-            ret = self.renderer.render_batch_ray(c, self.decoders, batch_rays_d,
-                                                 batch_rays_o, device, self.stage,
-                                                 gt_depth=None if self.coarse_mapper else batch_gt_depth)
-            depth, uncertainty, color = ret
+            # ret = self.renderer.render_batch_ray(c, self.decoders, batch_rays_d,
+            #                                      batch_rays_o, device, self.stage,
+            #                                      gt_depth=None if self.coarse_mapper else batch_gt_depth)
+            # depth, uncertainty, color = ret
+            ret = self.renderer.render_batch_ray(self.c, self.decoders, batch_rays_o, batch_rays_d, batch_gt_depth)
+            depth, color, uncertainty = ret
 
             depth_mask = (batch_gt_depth > 0)
             loss = torch.abs(
@@ -495,8 +497,10 @@ class Mapper(object):
             # for imap*, it uses volume density
             regulation = (not self.occupancy)
             if regulation:
+                # point_sigma = self.renderer.regulation(
+                #     c, self.decoders, batch_rays_d, batch_rays_o, batch_gt_depth, device, self.stage)
                 point_sigma = self.renderer.regulation(
-                    c, self.decoders, batch_rays_d, batch_rays_o, batch_gt_depth, device, self.stage)
+                    c, self.decoders, batch_rays_d, batch_rays_o, batch_gt_depth, device)
                 regulation_loss = torch.abs(point_sigma).sum()
                 loss += 0.0005*regulation_loss
 
@@ -517,6 +521,7 @@ class Mapper(object):
                         val = val.detach()
                         val[mask] = val_grad.clone().detach()
                         c[key] = val
+
 
         if self.BA:
             # put the updated camera poses back

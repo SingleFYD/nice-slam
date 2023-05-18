@@ -79,7 +79,7 @@ class SRender(object):
         gt_depth_samples = gt_depth.repeat(1, N_samples)
         near = gt_depth_samples * 0.1
 
-        with torch.no_grad:
+        with torch.no_grad():
             det_rays_o = rays_o.clone().detach().unsqueeze(-1)
             det_rays_d = rays_d.clone().detach().unsqueeze(-1)
             t = (self.bound.unsqueeze(0).to(device) - det_rays_o) / det_rays_d
@@ -90,7 +90,7 @@ class SRender(object):
         far = torch.clamp(far_bb, 0.0, (torch.min(gt_depth) + torch.max(self.bound[:, 1] - self.bound[:, 0])) * 1.2)    # 防止far过far（背景）
         if N_surface > 0:
             gt_none_zero_mask = gt_depth > 0
-            gt_none_zero = gt_none_zero[gt_none_zero_mask]
+            gt_none_zero = gt_depth[gt_none_zero_mask]
             gt_none_zero = gt_none_zero.unsqueeze(-1)
             gt_depth_surface = gt_none_zero.repeat(1, N_surface)
             t_vals_surface = torch.linspace(0.0, 1.0, steps=N_surface).double().to(device)

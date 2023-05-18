@@ -4,12 +4,8 @@ scale: 1
 verbose: True # print loss 信息
 occupancy: False
 low_gpu_mem: True
-grid_len:
-  coarse: 2 
-  middle: 0.32 
-  fine: 0.16
-  color: 0.16
-  bound_divisible: 0.32
+grid_len: 0.16
+bound_divisible: 0.32
 pretrained_decoders:
   coarse: pretrained/coarse.pt
   middle_fine: pretrained/middle_fine.pt # one ckpt contain both middle and fine
